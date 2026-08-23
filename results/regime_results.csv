@@ -1,0 +1,13 @@
+feats,model,regime,ic_mean,ic_t,n_days
+with_context,ridge,all,0.0109,1.86,901
+with_context,ridge,highvol,0.0515,3.4,183
+with_context,ridge,normal,0.0005,0.08,718
+with_context,lightgbm,all,-0.0295,-0.69,7
+with_context,lightgbm,highvol,-0.0465,-1.01,6
+with_context,lightgbm,normal,0.0729,,1
+no_context,ridge,all,0.0116,1.99,901
+no_context,ridge,highvol,0.045,2.85,183
+no_context,ridge,normal,0.0031,0.51,718
+no_context,lightgbm,all,0.0022,0.45,901
+no_context,lightgbm,highvol,0.0244,2.09,183
+no_context,lightgbm,normal,-0.0035,-0.65,718
