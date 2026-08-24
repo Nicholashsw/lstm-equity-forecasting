@@ -29,11 +29,32 @@ the level forecasts:
 | XGBoost | 0.497 | 0.141 | 1.83 |
 | SVR (linear) | 0.490 | 0.014 | 2.42 |
 | Ridge / Linear | 0.491 | 0.011 | 1.86 |
-| LSTM (64×2, early-stopped) | 0.480 | 0.004 | 0.76 |
+| LSTM (compact 32×1, early-stopped) | 0.480 | 0.004 | 0.76 |
 | LightGBM | 0.496 | −0.029 | −0.69 |
 | Shuffled-target ridge (leakage control) | 0.498 | 0.004 | 0.67 |
 
 ![Horse race](results/figures/test_ic_by_model.png)
+
+> **Which LSTM run is canonical.** `results/horse_race_results.csv` is the canonical horse race:
+> the full 518-ticker Bloomberg panel, 466,426 test stock-days (465,904 for the LSTM after the
+> 30-day sequence warm-up). Its LSTM row was produced by `run_all.py --quick`, i.e. the **compact**
+> configuration `LSTM_CFG_QUICK` — 1 layer, hidden 32, dropout 0.1, early-stopped at 3 epochs on
+> patience 2 (`results/lstm_training_curve.csv`).
+>
+> Two other LSTM runs exist in this repository and are **not** the reported result:
+>
+> | Artefact | Script | Configuration | Panel | Status |
+> |---|---|---|---|---|
+> | `results/horse_race_results.csv` | `run_all.py --quick` | 1×32, dropout 0.1, patience 2 | full, 465,904 test obs | **canonical** |
+> | `results/ckpt/*.json` | `run_zoo_ckpt.py` / `run_lstm_ckpt.py` | 1×32, dropout 0.1, patience 2 | earlier, smaller panel — 269,831 test obs (269,309 LSTM) | superseded dev run, see `results/ckpt/README.md` |
+> | `results/lstm_full_training_curve.csv` | `run_lstm_full.py` | **2×64, dropout 0.2, patience 5** (`C.LSTM_CFG`) | earlier panel | loss curve only — **test metrics were never persisted, so no result is claimed for this configuration** |
+>
+> The full-capacity 2×64 run reached a lower validation loss than the compact one (1.2557 vs 1.3970),
+> so the compact model is not demonstrably the stronger of the two; re-running the full-capacity
+> architecture on the canonical panel and persisting its metrics is an open item. It does not change
+> the level-prediction conclusion: the LSTM loses to the naive-zero baseline on RMSE on **both**
+> panels and under **both** configurations (0.021138 vs 0.020411 canonical; 0.020142 vs 0.019589 on
+> the dev panel).
 
 **Cross-sectional, regime-conditional (`results/xs_regime_results.csv`).** Target = each stock's
 next-day return minus the equal-weighted universe mean; regime = VIX 63-day z-score > 1, frozen
@@ -82,8 +103,11 @@ python run_xs_weekly.py                        # weekly-rebalance decay test
 python regime_analysis.py                      # level-IC by regime
 ```
 
-Runner scripts `run_lstm_full.py`, `run_lstm_ckpt.py`, `run_zoo_ckpt.py` reproduce the checkpointed
-model runs whose metrics are in `results/ckpt/*.json`. `docs/00_MASTER_PLAN.md` is the project
+Runner scripts `run_lstm_ckpt.py` and `run_zoo_ckpt.py` are the resume-safe checkpointed variants;
+their metrics land in `results/ckpt/*.json` and, for the zoo, in
+`results/horse_race_results_ckpt.csv` — **not** in the canonical `results/horse_race_results.csv`
+(see `results/ckpt/README.md`). `run_lstm_full.py` trains the full-capacity `C.LSTM_CFG`
+architecture and writes only its loss curve. `docs/00_MASTER_PLAN.md` is the project
 plan; `docs/02_DATA_SPEC.md` is the data contract; `docs/03–09` are the stage work orders.
 
 ### Building the paper

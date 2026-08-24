@@ -1,4 +1,9 @@
-"""Checkpointed horse-race runner: one model at a time, resume-safe."""
+"""Checkpointed horse-race runner: one model at a time, resume-safe.
+
+Development/recovery tool. Writes results/ckpt/*.json and
+results/horse_race_results_ckpt.csv. The canonical table is
+results/horse_race_results.csv, produced by run_all.py.
+See results/ckpt/README.md."""
 import sys, time, json
 from pathlib import Path
 import numpy as np
@@ -76,7 +81,11 @@ def main():
     for f in sorted(CKPT.glob("*.json")):
         rows += json.loads(f.read_text())
     res = pd.DataFrame(rows)
-    res.to_csv(C.RESULTS / "horse_race_results.csv", index=False)
+    # Deliberately NOT horse_race_results.csv. That file is the canonical table
+    # written by run_all.py on the full panel. This runner skips any model whose
+    # JSON already exists, so writing there would let a partial or stale
+    # checkpointed run silently overwrite the reported results.
+    res.to_csv(C.RESULTS / "horse_race_results_ckpt.csv", index=False)
     print("\nALL ZOO DONE")
     print(res[res.split == "test"].sort_values("ic_mean", ascending=False)
           .to_string(index=False))

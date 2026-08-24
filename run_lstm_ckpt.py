@@ -1,4 +1,9 @@
-"""Checkpointed LSTM training: resumes from last completed epoch."""
+"""Checkpointed LSTM training: resumes from last completed epoch.
+
+Note: CFG below is a deliberately compact development configuration and is
+NOT config.LSTM_CFG (which is 2 layers x 64 hidden, dropout 0.2, patience 5).
+Outputs land in results/ckpt/ and are superseded development metrics; see
+results/ckpt/README.md for how they relate to the canonical table."""
 import sys, json, time
 from pathlib import Path
 import numpy as np

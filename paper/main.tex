@@ -137,9 +137,13 @@ supporting the integrity of the pipeline.
 We compare eleven families: a zero-return and a momentum naive baseline; ordinary,
 ridge and elastic-net linear regression; a decision tree, random forest, XGBoost
 and LightGBM; a linear support-vector regressor; a degree-two polynomial ridge; and
-an LSTM. The LSTM is a two-layer network (hidden size 64, dropout 0.2) trained on
-30-day sequences pooled across the panel with shared weights, optimized with Adam
-under early stopping on validation loss and gradient clipping. Tree and boosting
+an LSTM. The reported LSTM is a compact single-layer network (hidden size 32,
+dropout 0.1) trained on 30-day sequences pooled across the panel with shared
+weights, optimized with Adam under early stopping on validation loss (patience
+two) and gradient clipping. A higher-capacity two-layer variant (hidden size 64,
+dropout 0.2, patience five) was also trained; it reached a lower validation loss
+but its test metrics were not retained, so no result is reported for it, and the
+level-prediction conclusion below holds for both configurations. Tree and boosting
 models use early stopping on the validation set; linear and kernel models are
 standardized within a pipeline.
 
