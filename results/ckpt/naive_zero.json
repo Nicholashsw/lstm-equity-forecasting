@@ -1,0 +1,1 @@
+[{"model": "naive_zero", "split": "val", "train_seconds": 0.0, "n_obs": 123302, "rmse": 0.02427104533735705, "mae": 0.016773219991036658, "dir_acc": NaN, "ic_mean": NaN, "ic_tstat": NaN}, {"model": "naive_zero", "split": "test", "train_seconds": 0.1, "n_obs": 269831, "rmse": 0.019589001033937976, "mae": 0.012677030508851918, "dir_acc": NaN, "ic_mean": NaN, "ic_tstat": NaN}]

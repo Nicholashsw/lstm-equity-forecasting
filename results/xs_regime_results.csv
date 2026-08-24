@@ -1,0 +1,7 @@
+model,regime,n_days,ic_mean,ic_t,ls_ann_ret_gross,ls_sharpe_gross,ls_sharpe_net,ls_maxdd_net,avg_turnover,degenerate_days
+ridge,all,915,0.0154,2.76,0.099,0.48,-1.99,-1.519,2.03,0
+ridge,highvol,183,0.032,1.87,0.312,0.96,-0.69,-0.257,2.12,0
+ridge,normal,732,0.0111,2.04,0.045,0.28,-2.93,-1.427,2.1,0
+lightgbm,all,915,0.0127,2.44,0.071,0.44,-3.55,-2.019,2.58,31
+lightgbm,highvol,183,0.0436,3.17,0.476,2.09,-0.88,-0.237,2.68,2
+lightgbm,normal,732,0.0048,0.88,-0.033,-0.24,-4.89,-1.911,2.6,29

@@ -1,0 +1,1 @@
+[{"model": "SANITY_shuffled_ridge", "split": "test", "train_seconds": 0, "n_obs": 269831, "rmse": 0.01958004019797873, "mae": 0.0126795993412796, "dir_acc": 0.49935329891672936, "ic_mean": 0.0050920648103560395, "ic_tstat": 0.6736249340814943}]
