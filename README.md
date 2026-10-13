@@ -107,8 +107,7 @@ Runner scripts `run_lstm_ckpt.py` and `run_zoo_ckpt.py` are the resume-safe chec
 their metrics land in `results/ckpt/*.json` and, for the zoo, in
 `results/horse_race_results_ckpt.csv` — **not** in the canonical `results/horse_race_results.csv`
 (see `results/ckpt/README.md`). `run_lstm_full.py` trains the full-capacity `C.LSTM_CFG`
-architecture and writes only its loss curve. `docs/00_MASTER_PLAN.md` is the project
-plan; `docs/02_DATA_SPEC.md` is the data contract; `docs/03–09` are the stage work orders.
+architecture and writes only its loss curve. `docs/data_spec.md` describes the data files and their columns.
 
 ### Building the paper
 
@@ -145,7 +144,7 @@ source as-is.
 ├── results/                  # committed metric CSVs, ckpt/*.json, figures/
 ├── paper/                    # IEEE manuscript (main.tex, PDF, class file, figure)
 ├── notebooks/                # executed notebook (.ipynb) + rendered .html
-├── docs/                     # master plan, PRD, data spec, stage work orders
+├── docs/                     # data spec
 ├── requirements.txt
 ├── LICENSE
 └── README.md
