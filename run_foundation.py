@@ -1,6 +1,6 @@
 """Foundation-model extension of the level horse race.
 
-Adds zero-shot TimesFM 2.5, TimesFM 3 and Chronos-2, plus Prophet, to the
+Adds zero-shot TimesFM 3 and Chronos-2 (TimesFM 2.5 with --tfm25), plus Prophet, to the
 next-day return race and scores them with the same metrics() as run_all.py
 on the same test rows.
 
@@ -11,8 +11,8 @@ covariates. Prophet is refit per ticker at each month start and forecasts
 every day of that month (refitting daily is 56k Stan fits).
 
 Run after the panel exists (run_all.py, or src/build_dataset.py):
-  python run_foundation.py                  # all test days
-  python run_foundation.py --stride 5       # every 5th test day, ~5x faster
+  python run_foundation.py --stride 5       # every 5th test day (reported run)
+  python run_foundation.py                  # every test day, ~5x slower on CPU
 Results -> results/foundation/level_results.csv
 """
 import argparse
@@ -82,8 +82,11 @@ def prophet_preds(panel, rows):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--stride", type=int, default=1)
+    ap.add_argument("--tfm25", action="store_true", help="also run TimesFM 2.5 (slow on CPU)")
     ap.add_argument("--ctx", type=int, default=256)
     ap.add_argument("--skip-prophet", action="store_true")
+    ap.add_argument("--only-cache", action="store_true",
+                    help="compute and cache the next missing model, then exit")
     a = ap.parse_args()
 
     t0 = time.time()
@@ -98,17 +101,35 @@ def main():
     preds = {}
 
     ctx, cov = contexts(panel, rows, a.ctx, with_cov=True)
-    for model, variants in [(TimesFM25(max_context=a.ctx, max_horizon=16), [False]),
-                            (Chronos2(), [False, True]),
-                            (TimesFM3(), [False, True])]:
+    runs = [(Chronos2, [False, True]), (TimesFM3, [False, True])]
+    if a.tfm25:
+        runs.insert(0, (lambda: TimesFM25(max_context=a.ctx, max_horizon=16), [False]))
+    # each model's predictions are cached, so an interrupted run resumes where it stopped
+    cache = OUT / "cache"
+    cache.mkdir(exist_ok=True)
+    tag = f"s{a.stride}_c{a.ctx}"
+    for build_model, variants in runs:
+        model = None
         for use in variants:
-            name = model.name.lower().replace("-", "_").replace(".", "p") + ("_ctx" if use else "")
+            base_name = {TimesFM3: "timesfm_3", Chronos2: "chronos_2"}.get(build_model, "timesfm_2p5")
+            name = base_name + ("_ctx" if use else "")
+            f = cache / f"{name}_{tag}.npy"
+            if f.exists():
+                preds[name] = np.load(f)
+                continue
+            model = model or build_model()
             preds[name] = model.predict(ctx, 1, covariates=cov if use else None)
+            np.save(f, preds[name])
             print(f"  {name:16s} {time.time() - t0:6.0f}s", flush=True)
+            if a.only_cache:
+                return
         del model
 
     if not a.skip_prophet:
-        preds["prophet"] = prophet_preds(panel, rows)
+        f = cache / f"prophet_{tag}.npy"
+        if not f.exists():
+            np.save(f, prophet_preds(panel, rows))
+        preds["prophet"] = np.load(f)
         print(f"  {'prophet':16s} {time.time() - t0:6.0f}s", flush=True)
 
     preds["naive_zero"] = np.zeros(len(rows))

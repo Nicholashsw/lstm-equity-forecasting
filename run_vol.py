@@ -16,7 +16,8 @@ Models
                 (HAR-X adds log VIX^2), fit on train + val
   LightGBM      pooled, all panel features + HAR features, val early stopping
   LSTM          src/lstm_model.py unchanged, compact config, vol target
-  TimesFM 2.5 / TimesFM 3 / Chronos-2   zero-shot on each ticker's trailing log RV
+  TimesFM 3 / Chronos-2   zero-shot on each ticker's trailing log RV
+                (TimesFM 2.5 too with --tfm25)
   "+ vix"       the same with log VIX^2 as a past-only covariate
   averages      equal-weight combinations of the above
 
@@ -98,6 +99,7 @@ def dm_dates(loss_a, loss_b, dates, lags):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--tfm25", action="store_true", help="also run TimesFM 2.5 (slow on CPU)")
     ap.add_argument("--ctx", type=int, default=512)
     ap.add_argument("--skip-lstm", action="store_true")
     a = ap.parse_args()
@@ -148,9 +150,11 @@ def main():
             lo = max(0, j - a.ctx + 1)
             ctx.append(s[lo:j + 1])
             cov.append(v[None, lo:j + 1])
-    for model, variants in [(TimesFM25(max_context=a.ctx, max_horizon=32), [False]),
-                            (Chronos2(), [False, True]),
-                            (TimesFM3(), [False, True])]:
+    runs = [(Chronos2, [False, True]), (TimesFM3, [False, True])]
+    if a.tfm25:
+        runs.insert(0, (lambda: TimesFM25(max_context=a.ctx, max_horizon=32), [False]))
+    for build_model, variants in runs:
+        model = build_model()
         for use in variants:
             name = model.name.lower().replace("-", "_").replace(".", "p") + ("_vix" if use else "")
             preds[name] = model.predict(ctx, H, covariates=cov if use else None)

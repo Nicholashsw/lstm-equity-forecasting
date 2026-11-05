@@ -75,6 +75,71 @@ At a weekly rebalance (`results/xs_weekly_results.csv`) the ridge IC is 0.0007: 
 cost and the edge together. A four-factor regression of the daily long-short
 (`results/risk_adjusted_results.csv`) leaves an insignificant alpha (t = 1.35 all days, 0.10 high-vol).
 
+## Extension: foundation models and realised volatility
+
+Two follow-up questions. Do pretrained time-series models (TimesFM 3, Chronos-2) or Prophet find
+what the zoo and the LSTM could not? And does the horse race say anything different on a target
+that is actually forecastable? Both runs use the 59-ticker yfinance mirror panel, not the 518-ticker
+Bloomberg panel, with the same splits and the same VIX regime flag. The zoo and LSTM rerun on the
+mirror is in `results/foundation/mirror_horse_race_results.csv` (naive-zero test RMSE 0.01854,
+LSTM IC 0.005, t = 0.63: the same null as the canonical run).
+
+**Next-day returns** (`run_foundation.py --stride 5`; every 5th test day, 11,387 stock-days). Each
+forecast sees only that ticker's returns through close(t); "+ ctx" adds VIX and the SPX 5-day
+return as past covariates. Prophet is refit per ticker each month.
+
+| Model | RMSE vs zero | Dir. acc. | IC | t |
+|---|---|---|---|---|
+| Chronos-2 | 1.007 | 0.512 | 0.014 | 0.73 |
+| Prophet | 1.006 | 0.505 | 0.012 | 0.53 |
+| TimesFM 3 + ctx | 1.013 | 0.513 | 0.011 | 0.63 |
+| Chronos-2 + ctx | 1.019 | 0.506 | 0.003 | 0.19 |
+| TimesFM 3 | 1.013 | 0.508 | −0.001 | −0.08 |
+
+Nothing beats zero, and no IC is distinguishable from it. Zero-shot pretraining does not change the
+level result.
+
+**21-day realised volatility** (`run_vol.py`). Target: log mean squared return over t+1..t+21.
+Train and validation rows whose label window crosses the split boundary are purged. There are
+11,151 test origins (every 5th day). HAR and HAR-X (adds log VIX²) are pooled OLS; LightGBM and the
+unchanged LSTM use the panel features plus the HAR terms; the foundation models see each ticker's
+trailing log RV (+ log VIX² for "+ vix"). DM is against HAR on the daily cross-sectional mean loss,
+Newey-West with 5 lags for the overlapping windows.
+
+| Model | RMSE vs HAR | DM p | QLIKE | XS IC | high-vol | normal |
+|---|---|---|---|---|---|---|
+| Avg: HAR-X, LightGBM, TimesFM 3 + vix | **0.954** | **<0.001** | 0.255 | 0.788 | 0.973 | 0.949 |
+| Avg: all models | 0.958 | <0.001 | **0.253** | 0.787 | 0.990 | 0.949 |
+| TimesFM 3 + vix | 0.976 | 0.17 | 0.263 | 0.780 | 1.031 | 0.961 |
+| LightGBM | 0.987 | 0.28 | 0.277 | 0.781 | 1.015 | 0.980 |
+| HAR | 1.000 | – | 0.272 | 0.767 | 1.000 | 1.000 |
+| HAR-X | 1.000 | 0.93 | 0.279 | 0.769 | 0.995 | 1.002 |
+| TimesFM 3 | 1.032 | 0.12 | 0.281 | 0.763 | 1.080 | 1.019 |
+| LSTM | 1.038 | 0.19 | 0.309 | 0.787 | 1.157 | 1.005 |
+| Chronos-2 + vix | 1.041 | 0.004 | 0.289 | 0.751 | 1.063 | 1.035 |
+| Chronos-2 | 1.048 | 0.004 | 0.294 | 0.752 | 1.068 | 1.043 |
+| Naive (trailing 21d RV) | 1.180 | <0.001 | 0.358 | 0.710 | 1.169 | 1.183 |
+
+- **The combination is the only significant win.** No single model beats HAR at 5%. The
+  equal-weight average of HAR-X, LightGBM and TimesFM 3 + vix cuts RMSE by 4.6% (DM p < 0.001).
+  The three make different errors, and averaging is where that pays.
+- **The foundation model needs the VIX.** TimesFM 3 on its own is worse than HAR; with log VIX² as a
+  covariate it is the best single model. Chronos-2 is significantly worse than HAR either way.
+- **The LSTM ranks well and levels badly.** It has the best cross-sectional IC of any single model, but its level
+  errors, mostly in high-vol periods (1.16), put its RMSE behind HAR.
+- **High-vol periods are where everything struggles.** Every single model except HAR-X is at or
+  above HAR when VIX is stressed (19.6% of origins). The combination's edge is smaller there (0.97)
+  than on normal days (0.95).
+
+```
+python run_vol.py                      # ~90 min on a 2-core CPU
+python run_foundation.py --stride 5    # ~80 min; caches each model in results/foundation/cache/
+```
+
+Wrappers are in `src/foundation.py`. Weights download from Hugging Face on first run. Both models
+were pretrained on public data that very likely overlaps this test window, so treat the zero-shot
+numbers as an upper bound.
+
 ## Method
 
 - **Data.** 518 S&P 500 constituents, OHLCV, exported from a Bloomberg Terminal with
