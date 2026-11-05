@@ -17,7 +17,7 @@ Models
   LightGBM      pooled, all panel features + HAR features, val early stopping
   LSTM          src/lstm_model.py unchanged, compact config, vol target
   TimesFM 3 / Chronos-2   zero-shot on each ticker's trailing log RV
-                (TimesFM 2.5 too with --tfm25)
+                (pick with --models; timesfm25 is also available)
   "+ vix"       the same with log VIX^2 as a past-only covariate
   averages      equal-weight combinations of the above
 
@@ -27,6 +27,8 @@ daily cross-sectional rank IC of predicted vs realised vol, and the same
 VIX regime flag as the level race.
 
   python run_vol.py            -> results/foundation/vol_results.csv
+Zero-shot predictions are cached in chunks under results/foundation/cache/, so an
+interrupted run picks up where it stopped.
 """
 import argparse
 import sys
@@ -39,7 +41,7 @@ from scipy import stats
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 import config as C  # noqa: E402
-from foundation import TimesFM25, TimesFM3, Chronos2  # noqa: E402
+from foundation import TimesFM25, TimesFM3, Chronos2, cached_predict  # noqa: E402
 
 OUT = C.RESULTS / "foundation"
 OUT.mkdir(parents=True, exist_ok=True)
@@ -99,7 +101,8 @@ def dm_dates(loss_a, loss_b, dates, lags):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tfm25", action="store_true", help="also run TimesFM 2.5 (slow on CPU)")
+    ap.add_argument("--models", default="chronos2,timesfm3",
+                    help="comma list from chronos2, timesfm3, timesfm25")
     ap.add_argument("--ctx", type=int, default=512)
     ap.add_argument("--skip-lstm", action="store_true")
     a = ap.parse_args()
@@ -150,20 +153,22 @@ def main():
             lo = max(0, j - a.ctx + 1)
             ctx.append(s[lo:j + 1])
             cov.append(v[None, lo:j + 1])
-    runs = [(Chronos2, [False, True]), (TimesFM3, [False, True])]
-    if a.tfm25:
-        runs.insert(0, (lambda: TimesFM25(max_context=a.ctx, max_horizon=32), [False]))
-    for build_model, variants in runs:
-        model = build_model()
+    zoo = {"timesfm25": ("timesfm_2p5", lambda: TimesFM25(max_context=a.ctx, max_horizon=32), [False]),
+           "chronos2": ("chronos_2", Chronos2, [False, True]),
+           "timesfm3": ("timesfm_3", TimesFM3, [True, False])}
+    tag = f"vol_s{STEP}_c{a.ctx}_n{len(ctx)}"
+    for key in a.models.split(","):
+        base, build, variants = zoo[key]
         for use in variants:
-            name = model.name.lower().replace("-", "_").replace(".", "p") + ("_vix" if use else "")
-            preds[name] = model.predict(ctx, H, covariates=cov if use else None)
+            name = base + ("_vix" if use else "")
+            preds[name] = cached_predict(build, OUT / "cache" / f"{name}_{tag}", ctx, H,
+                                         covariates=cov if use else None)
             print(f"  {name:20s}  {time.time() - t0:6.0f}s", flush=True)
-        del model
 
     fms = [k for k in preds if k.startswith(("timesfm", "chronos"))]
-    preds["avg_harx_lgbm_fm_vix"] = np.mean([preds["har_x"], preds["lightgbm"],
-                                             preds["timesfm_3_vix"]], axis=0)
+    if "timesfm_3_vix" in preds:
+        preds["avg_harx_lgbm_fm_vix"] = np.mean([preds["har_x"], preds["lightgbm"],
+                                                 preds["timesfm_3_vix"]], axis=0)
     preds["avg_foundation"] = np.mean([preds[k] for k in fms], axis=0)
     preds["avg_all"] = np.mean([preds[k] for k in preds if k not in ("naive",) and not k.startswith("avg")], axis=0)
 

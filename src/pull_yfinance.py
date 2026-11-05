@@ -4,7 +4,11 @@ Emits the same canonical schema the Bloomberg parser emits:
   panel_ohlcv.parquet : date, ticker, open, high, low, close, volume, adj_close
   context.parquet     : date, series, value   (series in Bloomberg naming)
 
-Usage: python src/pull_yfinance.py [--start 2005-01-01] [--include-v4]
+Usage: python src/pull_yfinance.py [--start 2005-01-01] [--include-v4] [--universe sp500]
+
+--universe sp500 pulls every name in data/universe/sp500.csv (current S&P 500
+constituents, so survivorship-biased like the Bloomberg export) instead of the
+46-stock + 13-ETF development list.
 """
 import argparse
 import sys
@@ -31,8 +35,16 @@ def _download(symbols, start, tries=3):
     raise RuntimeError(f"download failed for batch starting {symbols[0]}")
 
 
-def pull_equity_panel(start, include_v4=False):
-    shorts = C.V1A_EQUITIES + C.V1A_ETFS + (C.V4_ETFS if include_v4 else [])
+def load_universe(name):
+    path = C.ROOT / "data" / "universe" / f"{name}.csv"
+    return pd.read_csv(path)["symbol"].str.replace(".", "/", regex=False).tolist()
+
+
+def pull_equity_panel(start, include_v4=False, universe=None):
+    if universe:
+        shorts = load_universe(universe)
+    else:
+        shorts = C.V1A_EQUITIES + C.V1A_ETFS + (C.V4_ETFS if include_v4 else [])
     ymap = {C.to_yahoo(s): s for s in shorts}
     ysyms = list(ymap)
     frames, missing = [], []
@@ -135,7 +147,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", default=C.START_DATE)
     ap.add_argument("--include-v4", action="store_true")
+    ap.add_argument("--universe", default=None, help="name of a list in data/universe/, e.g. sp500")
     a = ap.parse_args()
-    pull_equity_panel(a.start, a.include_v4)
+    pull_equity_panel(a.start, a.include_v4, a.universe)
     pull_context(a.start)
     print("DONE pull_yfinance")

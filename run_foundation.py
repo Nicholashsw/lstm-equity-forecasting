@@ -1,6 +1,6 @@
 """Foundation-model extension of the level horse race.
 
-Adds zero-shot TimesFM 3 and Chronos-2 (TimesFM 2.5 with --tfm25), plus Prophet, to the
+Adds zero-shot TimesFM 3 and Chronos-2 (pick with --models), plus Prophet, to the
 next-day return race and scores them with the same metrics() as run_all.py
 on the same test rows.
 
@@ -25,7 +25,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 import config as C  # noqa: E402
-from foundation import TimesFM25, TimesFM3, Chronos2, ProphetModel  # noqa: E402
+from foundation import TimesFM25, TimesFM3, Chronos2, ProphetModel, cached_predict  # noqa: E402
 from run_all import metrics  # noqa: E402
 
 OUT = C.RESULTS / "foundation"
@@ -82,11 +82,10 @@ def prophet_preds(panel, rows):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--stride", type=int, default=1)
-    ap.add_argument("--tfm25", action="store_true", help="also run TimesFM 2.5 (slow on CPU)")
+    ap.add_argument("--models", default="chronos2,timesfm3",
+                    help="comma list from chronos2, timesfm3, timesfm25")
     ap.add_argument("--ctx", type=int, default=256)
     ap.add_argument("--skip-prophet", action="store_true")
-    ap.add_argument("--only-cache", action="store_true",
-                    help="compute and cache the next missing model, then exit")
     a = ap.parse_args()
 
     t0 = time.time()
@@ -101,31 +100,22 @@ def main():
     preds = {}
 
     ctx, cov = contexts(panel, rows, a.ctx, with_cov=True)
-    runs = [(Chronos2, [False, True]), (TimesFM3, [False, True])]
-    if a.tfm25:
-        runs.insert(0, (lambda: TimesFM25(max_context=a.ctx, max_horizon=16), [False]))
-    # each model's predictions are cached, so an interrupted run resumes where it stopped
+    # zero-shot predictions are cached in chunks, so an interrupted run resumes where it stopped
+    zoo = {"timesfm25": ("timesfm_2p5", lambda: TimesFM25(max_context=a.ctx, max_horizon=16), [False]),
+           "chronos2": ("chronos_2", Chronos2, [False, True]),
+           "timesfm3": ("timesfm_3", TimesFM3, [True, False])}
     cache = OUT / "cache"
-    cache.mkdir(exist_ok=True)
-    tag = f"s{a.stride}_c{a.ctx}"
-    for build_model, variants in runs:
-        model = None
+    tag = f"s{a.stride}_c{a.ctx}_n{len(ctx)}"
+    for key in a.models.split(","):
+        base_name, build, variants = zoo[key]
         for use in variants:
-            base_name = {TimesFM3: "timesfm_3", Chronos2: "chronos_2"}.get(build_model, "timesfm_2p5")
             name = base_name + ("_ctx" if use else "")
-            f = cache / f"{name}_{tag}.npy"
-            if f.exists():
-                preds[name] = np.load(f)
-                continue
-            model = model or build_model()
-            preds[name] = model.predict(ctx, 1, covariates=cov if use else None)
-            np.save(f, preds[name])
+            preds[name] = cached_predict(build, cache / f"{name}_{tag}", ctx, 1,
+                                         covariates=cov if use else None)
             print(f"  {name:16s} {time.time() - t0:6.0f}s", flush=True)
-            if a.only_cache:
-                return
-        del model
 
     if not a.skip_prophet:
+        cache.mkdir(parents=True, exist_ok=True)
         f = cache / f"prophet_{tag}.npy"
         if not f.exists():
             np.save(f, prophet_preds(panel, rows))

@@ -84,6 +84,29 @@ class Chronos2:
         return np.array(out)
 
 
+def cached_predict(build, path, contexts, h, covariates=None, chunk=2000, log=print):
+    """model.predict in chunks, each saved to path_<k>.npy, so a long CPU run can
+    be interrupted and resumed. build() is only called if a chunk is missing."""
+    from pathlib import Path
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    model, out = None, []
+    n_chunks = -(-len(contexts) // chunk)
+    for k in range(n_chunks):
+        f = path.with_name(f"{path.name}_{k:03d}.npy")
+        if f.exists():
+            out.append(np.load(f))
+            continue
+        model = model or build()
+        lo, hi = k * chunk, min(len(contexts), (k + 1) * chunk)
+        cov = covariates[lo:hi] if covariates is not None else None
+        p = model.predict(contexts[lo:hi], h, covariates=cov)
+        np.save(f, p)
+        out.append(p)
+        log(f"    {path.name}: chunk {k + 1}/{n_chunks}")
+    return np.concatenate(out)
+
+
 class ProphetModel:
     name = "Prophet"
 
