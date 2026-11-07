@@ -218,14 +218,15 @@ def main():
     for name, f in preds.items():
         ok = np.isfinite(f)
         e2, ql = (f - y) ** 2, qlike(y, f)
+        e2c = (cal[name] - y) ** 2
         if name == "har":
-            dm, pv, qdm, qpv = (np.nan,) * 4
+            dm, pv, qdm, qpv, cdm, cpv = (np.nan,) * 6
         else:
             dm, pv = dm_dates(e2[ok], se_har[ok], dates[ok], lag)
             qdm, qpv = dm_dates(ql[ok], ql_har[ok], dates[ok], lag)
+            cdm, cpv = dm_dates(e2c[ok], se_har_cal[ok], dates[ok], lag)
         df = pd.DataFrame({"date": dates, "y": y, "f": f})[ok]
         ic = df.groupby("date").apply(lambda g: stats.spearmanr(g["f"], g["y"])[0], include_groups=False)
-        e2c = (cal[name] - y) ** 2
         row = dict(model=name, n_obs=int(ok.sum()), rmse=float(np.sqrt(e2[ok].mean())),
                    rel_rmse_har=float(np.sqrt(e2[ok].mean() / se_har[ok].mean())),
                    dm_vs_har=dm, dm_p=pv,
@@ -233,7 +234,8 @@ def main():
                    xs_ic=float(ic.mean()), xs_ic_t=float(ic.mean() / ic.std() * np.sqrt(len(ic))),
                    bias=float((f - y)[ok].mean()),
                    cal_a=coef[name][0], cal_b=coef[name][1],
-                   rel_rmse_har_cal=float(np.sqrt(e2c[ok].mean() / se_har_cal[ok].mean())))
+                   rel_rmse_har_cal=float(np.sqrt(e2c[ok].mean() / se_har_cal[ok].mean())),
+                   cal_dm_vs_har=cdm, cal_dm_p=cpv)
         for lab, mask in [("highvol", regime == 1), ("normal", regime == 0)]:
             mk = ok & mask
             row[f"rel_rmse_har_{lab}"] = float(np.sqrt(e2[mk].mean() / se_har[mk].mean()))
