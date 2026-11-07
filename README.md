@@ -108,32 +108,62 @@ change the level result.
 Train and validation rows whose label window crosses the split boundary are purged. There are
 93,783 test origins (every 5th test day × 500 tickers). HAR and HAR-X (adds log VIX²) are pooled
 OLS; LightGBM and the unchanged LSTM use the panel features plus the HAR terms; TimesFM 3 sees each
-ticker's trailing 512 days of log RV (+ log VIX² for "+ vix"). DM is against HAR on the daily
-cross-sectional mean loss, Newey-West with 5 lags for the overlapping windows. The last two
-columns are RMSE vs HAR within each VIX regime.
+ticker's trailing 512 days of log RV (+ log VIX² for "+ vix"). Every DM test is against HAR on the
+daily cross-sectional mean loss, Newey-West with 5 lags for the overlapping windows. Two losses are
+tested: squared error on log RV, and QLIKE on the implied variance, which is the one that stays
+reliable when the realised-variance target is itself noisy (Patton, 2011). The last two columns
+are RMSE vs HAR within each VIX regime.
 
-| Model | RMSE vs HAR | DM p | QLIKE | XS IC | high-vol | normal |
-|---|---|---|---|---|---|---|
-| Avg: all models | **0.947** | **<0.001** | **0.303** | 0.691 | **0.965** | **0.942** |
-| Avg: HAR-X, LightGBM, TimesFM 3 + vix | 0.960 | <0.001 | 0.311 | 0.683 | 0.968 | 0.958 |
-| LightGBM | 0.991 | 0.43 | 0.335 | 0.676 | 1.019 | 0.984 |
-| TimesFM 3 + vix | 0.991 | 0.36 | 0.326 | 0.672 | 1.022 | 0.983 |
-| HAR-X | 1.000 | 0.94 | 0.335 | 0.655 | 0.996 | 1.001 |
-| HAR | 1.000 | – | 0.323 | 0.653 | 1.000 | 1.000 |
-| TimesFM 3 | 1.032 | <0.001 | 0.344 | 0.654 | 1.059 | 1.025 |
-| LSTM | 1.077 | 0.012 | 0.404 | **0.709** | 1.109 | 1.069 |
-| Naive (trailing 21d RV) | 1.214 | <0.001 | 0.448 | 0.573 | 1.211 | 1.215 |
+| Model | RMSE vs HAR | DM p | QLIKE | QLIKE DM p | XS IC | high-vol | normal |
+|---|---|---|---|---|---|---|---|
+| Avg: all models | **0.947** | **<0.001** | **0.303** | **<0.001** | 0.691 | **0.965** | **0.942** |
+| Avg: HAR-X, LightGBM, TimesFM 3 + vix ¹ | 0.960 | <0.001 | 0.311 | 0.005 | 0.683 | 0.968 | 0.958 |
+| LightGBM | 0.991 | 0.43 | 0.335 | 0.10 | 0.676 | 1.019 | 0.984 |
+| TimesFM 3 + vix | 0.991 | 0.36 | 0.326 | 0.73 | 0.672 | 1.022 | 0.983 |
+| HAR-X | 1.000 | 0.94 | 0.335 | 0.004 | 0.655 | 0.996 | 1.001 |
+| HAR | 1.000 | – | 0.323 | – | 0.653 | 1.000 | 1.000 |
+| TimesFM 3 | 1.032 | <0.001 | 0.344 | 0.004 | 0.654 | 1.059 | 1.025 |
+| LSTM | 1.077 | 0.012 | 0.404 | 0.011 | **0.709** | 1.109 | 1.069 |
+| Naive (trailing 21d RV) | 1.214 | <0.001 | 0.448 | <0.001 | 0.573 | 1.211 | 1.215 |
 
-"All models" is HAR, HAR-X, LightGBM, LSTM and both TimesFM 3 variants.
+"All models" is HAR, HAR-X, LightGBM, LSTM and both TimesFM 3 variants, so nobody chose its members.
+¹ This combination was picked because it won on the 59-ticker run. That run covered the same test
+years and its tickers are a subset of these 500, so this row is not an independent confirmation.
 
-- **Only the combinations beat HAR.** No single model is significantly better than HAR. Averaging
-  everything cuts RMSE by 5.3% and the three-model average by 4.0%, both at DM p < 0.001. The
+**Calibrated.** Every model leaves some level bias, mostly forecasting too little vol. To separate
+skill from bias, each model (combinations included) is also scored after a linear correction
+y = a + b·forecast fitted on validation-year origins (every 10th day of 2022, 11,302 origins).
+Bias is the mean test error in log RV before correction; b is the fitted slope.
+
+| Model | Bias | b | RMSE vs HAR, calibrated | DM p |
+|---|---|---|---|---|
+| Avg: all models | −0.058 | 0.89 | **0.928** | **<0.001** |
+| Avg: HAR-X, LightGBM, TimesFM 3 + vix ¹ | −0.056 | 0.96 | 0.936 | <0.001 |
+| HAR-X | −0.050 | 1.03 | 0.965 | 0.002 |
+| LightGBM | −0.078 | 1.02 | 0.969 | 0.06 |
+| TimesFM 3 + vix | −0.040 | 0.75 | 0.970 | 0.013 |
+| HAR | −0.017 | 0.95 | 1.000 | – |
+| TimesFM 3 | −0.021 | 0.70 | 1.001 | 0.89 |
+| LSTM | −0.145 | 0.57 | 1.031 | 0.30 |
+| Naive (trailing 21d RV) | 0.004 | 0.60 | 1.083 | <0.001 |
+
+- **The all-model average is the one result that holds under every test.** It beats HAR on squared
+  error (5.3% lower RMSE), on QLIKE, and after calibration (7.2% lower), each at p < 0.001. The
   models make different errors, and averaging is where that pays.
-- **The foundation model needs the VIX.** TimesFM 3 on its own is significantly worse than HAR.
-  With log VIX² as a covariate it ties LightGBM as the best single model. On the 59-ticker subset
-  Chronos-2 was significantly worse than HAR with or without the VIX (4.1% and 4.8% higher RMSE).
-- **The LSTM ranks well and levels badly.** It has the best cross-sectional IC of any model, but
-  its level errors put it 7.7% behind HAR on RMSE, and significantly so.
+- **Raw, no single model beats HAR, and on QLIKE several lose to it.** HAR has the lowest QLIKE of
+  any single model; HAR-X, TimesFM 3 and the LSTM are significantly worse on it.
+- **Some of that gap is bias, not skill.** After calibration HAR-X (p = 0.002) and TimesFM 3 + vix
+  (p = 0.013) do beat HAR, and LightGBM nearly does. The caveat is that the correction is fitted on
+  one year, 2022, which was also the year HAR was fitted on and LightGBM and the LSTM early-stopped
+  on, so a different calibration year could move these.
+- **The foundation model needs the VIX.** TimesFM 3 on its own is significantly worse than HAR raw,
+  and no better after calibration. With log VIX² as a covariate it ties LightGBM. On the 59-ticker
+  subset Chronos-2 was significantly worse than HAR with or without the VIX (4.1% and 4.8% higher
+  RMSE).
+- **The LSTM ranks well and levels badly, and calibration only half fixes it.** It has the best
+  cross-sectional IC of any model, but its forecasts sit too low (bias −0.145) and are too spread
+  out (b = 0.57). Correcting both cuts its gap to HAR from 7.7% to 3.1%, which is no longer
+  significant, but it still does not beat HAR.
 - **High-vol periods are where everything struggles.** HAR-X is the only single model at or below
   HAR when VIX is stressed (19.6% of origins). The combinations keep their edge there, just less of
   it (0.965 vs 0.942 on normal days).
