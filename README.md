@@ -100,7 +100,7 @@ python run_all.py --source yfinance           # dev mirror; --quick for a smoke 
 python run_all.py --source bloomberg --skip-pull   # after dropping Bloomberg CSVs in data/raw/bloomberg/
 python run_xs_regime.py                        # headline cross-sectional regime test
 python run_xs_weekly.py                        # weekly-rebalance decay test
-python regime_analysis.py                      # level-IC by regime
+python run_regime.py                           # level-IC by regime
 ```
 
 Runner scripts `run_lstm_ckpt.py` and `run_zoo_ckpt.py` are the resume-safe checkpointed variants;
@@ -138,7 +138,6 @@ source as-is.
 ├── run_xs_regime.py          # headline cross-sectional regime test -> xs_regime_results.csv
 ├── run_xs_weekly.py          # 5-day-horizon weekly-rebalance decay test
 ├── run_regime.py             # level-IC by regime, context vs no-context
-├── regime_analysis.py        # per-regime horse race (same output as run_regime.py)
 ├── compute_ls_series.py      # daily ridge long-short series -> ridge_ls_daily.csv
 ├── extract_xlsm.py           # one-off: Bloomberg workbook -> per-sheet CSVs
 ├── results/                  # committed metric CSVs, ckpt/*.json, figures/
