@@ -19,3 +19,7 @@ matplotlib>=3.7
 yfinance>=0.2
 openpyxl>=3.1        # extract_xlsm.py (reads the Bloomberg workbook export)
 
+# foundation-model extension (run_foundation.py, run_vol.py)
+timesfm[torch]>=3.0
+chronos-forecasting>=2.3
+prophet>=1.1.6

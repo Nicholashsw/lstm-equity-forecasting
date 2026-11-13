@@ -112,12 +112,13 @@ def main():
     ap.add_argument("--skip-pull", action="store_true")
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--no-context", action="store_true")
+    ap.add_argument("--universe", default=None, help="yfinance only: list in data/universe/, e.g. sp500")
     a = ap.parse_args()
 
     if not a.skip_pull:
         if a.source == "yfinance":
             from pull_yfinance import pull_equity_panel, pull_context
-            pull_equity_panel(C.START_DATE)
+            pull_equity_panel(C.START_DATE, universe=a.universe)
             pull_context(C.START_DATE)
         else:
             from parse_bbg_csv import build as bbg_build

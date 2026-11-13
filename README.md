@@ -75,6 +75,128 @@ At a weekly rebalance (`results/xs_weekly_results.csv`) the ridge IC is 0.0007: 
 cost and the edge together. A four-factor regression of the daily long-short
 (`results/risk_adjusted_results.csv`) leaves an insignificant alpha (t = 1.35 all days, 0.10 high-vol).
 
+## Extension: foundation models and realised volatility
+
+Two follow-up questions. Do pretrained time-series models (TimesFM 3, Chronos-2) or Prophet find
+what the zoo and the LSTM could not? And does the horse race say anything different on a target
+that is actually forecastable?
+
+These runs use a yfinance pull of the current S&P 500 list (`data/universe/sp500.csv`, 502 names
+with data, April 2005 to November 2026), not the Bloomberg export, with the same splits and the same
+VIX regime flag. Like the Bloomberg panel it is survivorship-biased. The zoo and LSTM rerun on this
+panel is in `results/foundation/sp500_horse_race_results.csv` and reproduces the null: naive-zero
+test RMSE 0.02164 over 478,535 stock-days, nothing beats it by more than 0.1%, XGBoost IC 0.043
+(t = 0.86), LSTM IC 0.007 (t = 1.35), shuffled-target ridge −0.004.
+
+Chronos-2 and Prophet are too slow on a 2-core CPU for the full panel and were only run on a
+59-ticker development subset. Their results are in the `mirror_*` files.
+
+**Next-day returns** (`run_foundation.py --stride 5`; every 5th test day, 95,905 stock-days across
+502 tickers). Each forecast sees only that ticker's returns through close(t); "+ ctx" adds VIX and
+the SPX 5-day return as past covariates.
+
+| Model | RMSE vs zero | Dir. acc. | IC | t |
+|---|---|---|---|---|
+| TimesFM 3 + ctx | 1.014 | 0.505 | 0.001 | 0.10 |
+| TimesFM 3 | 1.015 | 0.500 | −0.016 | −1.24 |
+
+Neither beats zero, and neither IC is distinguishable from it. On the 59-ticker subset Chronos-2
+(IC 0.014, t = 0.73) and Prophet (IC 0.012, t = 0.53) were no better. Zero-shot pretraining does not
+change the level result.
+
+**21-day realised volatility** (`run_vol.py`). Target: log mean squared return over t+1..t+21.
+Train and validation rows whose label window crosses the split boundary are purged. There are
+93,783 test origins (every 5th test day × 500 tickers). HAR and HAR-X (adds log VIX²) are OLS on
+train + val, fitted both pooled across tickers and separately per ticker (the 17 tickers with less
+than 500 days of history before 2023 keep the pooled fit). LightGBM and the unchanged LSTM use the
+panel features plus the HAR terms; TimesFM 3 sees each ticker's trailing 512 days of log RV (+ log
+VIX² for "+ vix").
+
+The reference is the per-ticker HAR, because it is the strongest HAR variant: it beats the pooled
+HAR on both losses below. Every DM test is against it, on the daily cross-sectional mean loss,
+Newey-West with 5 lags for the overlapping windows. Two losses are tested: squared error on log RV,
+and QLIKE on the implied variance, which is the one that stays reliable when the realised-variance
+target is itself noisy (Patton, 2011). The last two columns are RMSE vs the reference within each
+VIX regime.
+
+| Model | RMSE vs ref | DM p | QLIKE | QLIKE DM p | XS IC | high-vol | normal |
+|---|---|---|---|---|---|---|---|
+| Avg: all models | **0.957** | <0.001 | **0.302** | 0.008 | 0.694 | **0.968** | **0.954** |
+| Avg: HAR-X, LightGBM, TimesFM 3 + vix ¹ | 0.972 | <0.001 | 0.311 | 0.42 | 0.683 | 0.979 | 0.970 |
+| HAR, per ticker | 1.000 | – | 0.315 | – | 0.668 | 1.000 | 1.000 |
+| LightGBM | 1.003 | 0.73 | 0.335 | 0.008 | 0.676 | 1.030 | 0.996 |
+| TimesFM 3 + vix | 1.003 | 0.66 | 0.326 | 0.22 | 0.672 | 1.033 | 0.996 |
+| HAR-X, pooled | 1.012 | 0.047 | 0.335 | <0.001 | 0.655 | 1.006 | 1.013 |
+| HAR, pooled | 1.012 | 0.005 | 0.323 | 0.026 | 0.653 | 1.011 | 1.013 |
+| HAR-X, per ticker | 1.024 | 0.042 | 0.362 | <0.001 | 0.653 | 1.004 | 1.029 |
+| TimesFM 3 | 1.045 | <0.001 | 0.344 | <0.001 | 0.654 | 1.071 | 1.038 |
+| LSTM | 1.091 | 0.002 | 0.404 | 0.005 | **0.709** | 1.121 | 1.082 |
+| Naive (trailing 21d RV) | 1.229 | <0.001 | 0.448 | <0.001 | 0.573 | 1.224 | 1.230 |
+
+"All models" is every single-model row except naive, so nobody chose its members.
+¹ This combination was picked because it won on the 59-ticker run. That run covered the same test
+years and its tickers are a subset of these 500, so this row is not an independent confirmation.
+
+**Calibrated.** Almost every model leaves some level bias, mostly forecasting too little vol. To
+separate skill from bias, each model (combinations included) is also scored after a linear
+correction y = a + b·forecast fitted on validation-year origins (every 10th day of 2022, 11,302
+origins), with the reference calibrated the same way. Bias is the mean test error in log RV before
+correction; b is the fitted slope.
+
+| Model | Bias | b | RMSE vs ref, calibrated | DM p |
+|---|---|---|---|---|
+| Avg: all models | −0.058 | 0.91 | **0.920** | <0.001 |
+| Avg: HAR-X, LightGBM, TimesFM 3 + vix ¹ | −0.056 | 0.96 | 0.931 | <0.001 |
+| HAR-X, pooled | −0.050 | 1.03 | 0.960 | 0.009 |
+| HAR-X, per ticker | −0.094 | 0.93 | 0.961 | 0.030 |
+| LightGBM | −0.078 | 1.02 | 0.964 | 0.051 |
+| TimesFM 3 + vix | −0.040 | 0.75 | 0.965 | 0.001 |
+| HAR, pooled | −0.017 | 0.95 | 0.995 | 0.35 |
+| TimesFM 3 | −0.021 | 0.70 | 0.996 | 0.57 |
+| HAR, per ticker | −0.021 | 0.88 | 1.000 | – |
+| LSTM | −0.145 | 0.57 | 1.026 | 0.36 |
+| Naive (trailing 21d RV) | 0.004 | 0.60 | 1.078 | <0.001 |
+
+
+- **The all-model average is the one result that holds under every test.** It beats the per-ticker
+  HAR on squared error (4.3% lower RMSE, p < 0.001), on QLIKE (p = 0.008) and after calibration
+  (8.0% lower, p < 0.001). The models make different errors, and averaging is where that pays.
+- **The hand-picked combination does not hold up as well.** It still wins on squared error, but its
+  QLIKE edge over the per-ticker HAR is not significant (p = 0.42).
+- **Raw, nothing single beats a HAR fitted per ticker.** LightGBM and TimesFM 3 + vix tie it on
+  RMSE and lose to it on QLIKE (significantly so for LightGBM). The per-ticker HAR also has the
+  lowest QLIKE of any single model, and the pooled HAR, the usual panel benchmark, is
+  significantly weaker (1.2% higher RMSE).
+- **Some of that gap is bias, not skill.** After calibration TimesFM 3 + vix (p = 0.001) and both
+  HAR-X fits (p = 0.009 pooled, 0.030 per ticker) beat the reference, and LightGBM nearly does. The
+  caveat is that the correction is fitted on one year, 2022, which the HAR models were also fitted
+  on and LightGBM and the LSTM early-stopped on, so a different calibration year could move these.
+- **The foundation model needs the VIX.** TimesFM 3 on its own is significantly worse than the
+  reference raw, and no better after calibration. With log VIX² as a covariate it ties LightGBM.
+  On the 59-ticker subset Chronos-2 was significantly worse than the pooled HAR with or without the
+  VIX (4.1% and 4.8% higher RMSE).
+- **The LSTM ranks well and levels badly, and calibration only half fixes it.** It has the best
+  cross-sectional IC of any model, but its forecasts sit too low (bias −0.145) and are too spread
+  out (b = 0.57). Correcting both cuts its gap to the reference from 9.1% to 2.6%, which is no
+  longer significant, but it still does not beat it.
+- **High-vol periods are where everything struggles.** Every single model is above the per-ticker
+  HAR when VIX is stressed (19.6% of origins). The combinations keep their edge there, just less of
+  it (0.968 vs 0.954 on normal days for the all-model average).
+- **The 59-ticker subset told the same story.** Only the combinations were significant there too
+  (three-model average 0.954 against the pooled HAR). The bigger panel changes which average wins
+  and shrinks TimesFM 3 + vix from the best single model (0.976) to a tie with LightGBM.
+
+```
+python run_all.py --source yfinance --universe sp500 --quick
+python run_vol.py --models timesfm3                       # ~12 h of TimesFM on a 2-core CPU
+python run_foundation.py --stride 5 --models timesfm3 --skip-prophet   # ~7 h
+```
+
+Zero-shot predictions are cached in chunks under `results/foundation/cache/`, so an interrupted run
+picks up where it stopped. Wrappers are in `src/foundation.py`. Weights download from Hugging Face
+on first run. Both models were pretrained on public data that very likely overlaps this test
+window, so treat the zero-shot numbers as an upper bound.
+
 ## Method
 
 - **Data.** 518 S&P 500 constituents, OHLCV, exported from a Bloomberg Terminal with
@@ -140,9 +262,12 @@ source as-is.
 ├── run_regime.py             # level-IC by regime, context vs no-context
 ├── compute_ls_series.py      # daily ridge long-short series -> ridge_ls_daily.csv
 ├── extract_xlsm.py           # one-off: Bloomberg workbook -> per-sheet CSVs
-├── results/                  # committed metric CSVs, ckpt/*.json, figures/
+├── run_foundation.py         # TimesFM 3 / Chronos-2 / Prophet on next-day returns
+├── run_vol.py                # 21-day realised-vol horse race
+├── results/                  # committed metric CSVs, ckpt/*.json, figures/, foundation/
 ├── paper/                    # IEEE manuscript (main.tex, PDF, class file, figure)
 ├── notebooks/                # executed notebook (.ipynb) + rendered .html
+├── data/universe/            # ticker lists for the yfinance pull (sp500.csv)
 ├── docs/                     # data spec
 ├── requirements.txt
 ├── LICENSE

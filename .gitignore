@@ -11,3 +11,5 @@ data/*.parquet
 results/ckpt/preds_*.parquet
 results/lstm_test_predictions.csv
 *.xlsm
+results/foundation/cache/
+results/foundation/*.log
