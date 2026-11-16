@@ -25,10 +25,10 @@ OUT.mkdir(parents=True, exist_ok=True)
 wb = load_workbook(SRC, read_only=True, data_only=True)
 names = [n for n in wb.sheetnames if n.startswith("BBG_V")]
 print(len(names), "BBG sheets")
-for n in names:
+for i, n in enumerate(sorted(names), 1):
     t0 = time.time()
     ws = wb[n]
-    with open(OUT / f"{n}.csv", "w", newline="") as f:
+    with open(OUT / f"bloomberg_sp500_ohlcv_d_2005_2026_sheet{i:02d}.csv", "w", newline="") as f:
         w = csv.writer(f)
         for row in ws.iter_rows(values_only=True):
             w.writerow(["" if v is None else v for v in row])

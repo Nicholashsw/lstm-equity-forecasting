@@ -60,9 +60,9 @@ def parse_one_csv(path: Path) -> pd.DataFrame:
 
 
 def build(indir: Path):
-    files = sorted(indir.glob("BBG_*.csv"))
+    files = sorted(indir.glob("bloomberg_sp500_ohlcv_d_2005_2026_sheet[0-9][0-9].csv"))
     if not files:
-        raise SystemExit(f"No BBG_*.csv files in {indir}")
+        raise SystemExit(f"No bloomberg_sp500_ohlcv_d_2005_2026_sheet[0-9][0-9].csv files in {indir}")
     long_frames = []
     for f in files:
         print(f"parsing {f.name}")
@@ -106,7 +106,7 @@ def check_parity(indir: Path):
     """Compare Bloomberg close vs existing yfinance parquet."""
     yf_panel = pd.read_parquet(C.PROC / "panel_ohlcv.parquet")[
         ["date", "ticker", "close"]].rename(columns={"close": "close_yf"})
-    frames = [parse_one_csv(f) for f in sorted(indir.glob("BBG_*.csv"))]
+    frames = [parse_one_csv(f) for f in sorted(indir.glob("bloomberg_sp500_ohlcv_d_2005_2026_sheet[0-9][0-9].csv"))]
     bbg = pd.concat(frames, ignore_index=True)
     bbg = bbg[bbg["field"] == "close"].copy()
     bbg["ticker"] = bbg["ticker"].str.replace(r"\s+[A-Z]{1,2}\s+Equity$", "", regex=True)
