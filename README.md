@@ -1,16 +1,17 @@
 # LSTM vs Classical ML for Cross-Sectional Equity Return Prediction
 
 Does an LSTM beat classical machine learning at forecasting daily US equity returns? On a panel of
-518 S&P 500 constituents (March 2005 – July 2026, Bloomberg), under a strictly chronological
-protocol with an explicit shuffled-target leakage control: **no model, LSTM included, predicts
-next-day return levels better than a zero-return baseline.** Reframed cross-sectionally the
-picture changes, but only in stress: a gradient-boosted tree reaches a mean daily rank IC of
-0.044 (t = 3.2) on high-volatility days versus 0.005 (t = 0.9) on calm days, a decile long-short
-earns a gross Sharpe of 2.09 in those periods, and **none of it survives transaction costs at
-daily rebalancing** (net Sharpe negative in every configuration) while the signal decays to zero
-IC at a five-day horizon. The detectable structure is real, short-horizon, stress-concentrated and
-not exploitable at the frequencies studied. That is the conclusion, and the paper argues it is the
-right one.
+518 tickers (501 S&P 500 stocks and 17 country and index ETFs, March 2005 to July 2026,
+Bloomberg), under a strictly chronological protocol: **no model, LSTM included, predicts next-day
+return levels better than a zero-return baseline.** Reframed cross-sectionally the picture
+changes, but only in stress: a gradient-boosted tree reaches a mean daily rank IC of 0.044
+(t = 3.2) on high-volatility days versus 0.005 (t = 0.9) on calm days, a decile long-short earns a
+gross Sharpe of 2.09 in those periods, and **none of it survives transaction costs at daily
+rebalancing** (net Sharpe negative in every configuration). At a five-day horizon the ridge
+model's IC is 0.0007; the weekly tree run produced no usable predictions. The stress result is
+one of six regime-by-model cells, tested with plain t-statistics and no adjustment for multiple
+comparisons, so it is short-horizon, concentrated in stress and not exploitable at the
+frequencies studied.
 
 Nicholas Hong · NTU Undergraduate Research Opportunities Programme (UROP)
 
@@ -31,22 +32,34 @@ the level forecasts:
 | Ridge / Linear | 0.491 | 0.011 | 1.86 |
 | LSTM (compact 32×1, early-stopped) | 0.480 | 0.004 | 0.76 |
 | LightGBM | 0.496 | −0.029 | −0.69 |
-| Shuffled-target ridge (leakage control) | 0.498 | 0.004 | 0.67 |
+| Shuffled-target ridge (harness check) | 0.498 | 0.004 | 0.67 |
+
+The two boosted-tree rows are not comparable with the others. Both models stop after a few
+boosting rounds and give almost every stock the same prediction, and the IC is only defined on
+days when predictions differ across stocks. LightGBM's figure rests on 7 of the 915 test days
+(`results/regime_results.csv`); XGBoost's t of 1.83 on an IC of 0.141 implies at most 168. Ridge
+uses 901 days.
 
 ![Horse race](results/figures/test_ic_by_model.png)
 
 > **Which LSTM run is canonical.** `results/horse_race_results.csv` is the canonical horse race:
-> the full 518-ticker Bloomberg panel, 466,426 test stock-days (465,904 for the LSTM after the
-> 30-day sequence warm-up). Its LSTM row was produced by `run_all.py --quick`, i.e. the **compact**
-> configuration `LSTM_CFG_QUICK` — 1 layer, hidden 32, dropout 0.1, early-stopped at 3 epochs on
-> patience 2 (`results/lstm_training_curve.csv`).
+> the full 518-ticker Bloomberg panel, 466,426 test stock-days (465,904 for the LSTM, which needs
+> 30 prior rows per ticker). Its LSTM row was produced by `run_all.py --quick`, i.e. the **compact**
+> configuration `LSTM_CFG_QUICK`: 1 layer, hidden 32, stopped after 3 epochs on patience 2
+> (`results/lstm_training_curve.csv`). The best epoch was the first (validation loss 1.397, then
+> 1.569 and 1.673), so the reported model is one pass of training. The configured dropout of 0.1
+> has no effect, because PyTorch applies dropout only between stacked layers and this model has one.
+>
+> A rerun on 16 November 2026 from a fresh extract of the same Bloomberg workbook gave 465,811 test
+> stock-days (465,289 for the LSTM). One ticker, FISV, has a constant volume series in that
+> extract, which drops its 615 test rows. The tables here are from the saved July run.
 >
 > Two other LSTM runs exist in this repository and are **not** the reported result:
 >
 > | Artefact | Script | Configuration | Panel | Status |
 > |---|---|---|---|---|
-> | `results/horse_race_results.csv` | `run_all.py --quick` | 1×32, dropout 0.1, patience 2 | full, 465,904 test obs | **canonical** |
-> | `results/ckpt/*.json` | `run_zoo_ckpt.py` / `run_lstm_ckpt.py` | 1×32, dropout 0.1, patience 2 | earlier, smaller panel — 269,831 test obs (269,309 LSTM) | superseded dev run, see `results/ckpt/README.md` |
+> | `results/horse_race_results.csv` | `run_all.py --quick` | 1×32, patience 2 | full, 465,904 test obs | **canonical** |
+> | `results/ckpt/*.json` | `run_zoo_ckpt.py` / `run_lstm_ckpt.py` | 1×32, patience 2 | earlier, smaller panel: 269,831 test obs (269,309 LSTM) | superseded dev run, see `results/ckpt/README.md` |
 > | `results/lstm_full_training_curve.csv` | `run_lstm_full.py` | **2×64, dropout 0.2, patience 5** (`C.LSTM_CFG`) | earlier panel | loss curve only — **test metrics were never persisted, so no result is claimed for this configuration** |
 >
 > The full-capacity 2×64 run reached a lower validation loss than the compact one (1.2557 vs 1.3970),
@@ -57,8 +70,9 @@ the level forecasts:
 > the dev panel).
 
 **Cross-sectional, regime-conditional (`results/xs_regime_results.csv`).** Target = each stock's
-next-day return minus the equal-weighted universe mean; regime = VIX 63-day z-score > 1, frozen
-before any test evaluation.
+next-day return minus the equal-weighted universe mean; regime = VIX 63-day z-score > 1. The code
+uses that one threshold throughout, but the repository has a single commit and cannot show when it
+was chosen.
 
 | Model | Regime | IC | t | L/S Sharpe gross | L/S Sharpe net (10 bp/side) | Turnover |
 |---|---|---|---|---|---|---|
@@ -74,34 +88,40 @@ before any test evaluation.
 At a weekly rebalance (`results/xs_weekly_results.csv`) the ridge IC is 0.0007: slower trading removes the
 cost and the edge together. A four-factor regression of the daily long-short
 (`results/risk_adjusted_results.csv`) leaves an insignificant alpha (t = 1.35 all days, 0.10 high-vol).
+`src/risk_adjust.py` computes and prints these figures; no script writes the csv.
 
 ## Method
 
-- **Data.** 518 S&P 500 constituents, OHLCV, exported from a Bloomberg Terminal with
+- **Data.** 518 tickers (501 S&P 500 stocks and 17 ETFs), OHLCV, exported from a Bloomberg Terminal with
   `mod_BBG_UROP_Export.bas` (not in this repo) into a long-format parquet; a yfinance mirror
   (`src/pull_yfinance.py`) emits the identical schema for development and was checked against the
   Bloomberg closes (`results/parity_report.csv`, median absolute difference ≈ 0). Context series:
   VIX, MOVE, DXY, the UST curve, commodities.
 - **Protocol.** Chronological split only (train ≤ 2021, validation 2022, test 2023+). Features use
   information through the close of day t; target is the t → t+1 return. Scalers fit on train only.
-  A shuffled-target ridge is run every time as a leakage alarm (|IC| must stay below 0.02).
+  A ridge trained on shuffled targets is run every time (|IC| must stay below 0.02). It checks
+  that the evaluation code does not manufacture IC. It cannot detect look-ahead in the features.
 - **Models.** Naive zero/momentum, linear, ridge, elastic-net, polynomial ridge, decision tree,
   random forest, XGBoost, LightGBM, linear SVR (`src/models_zoo.py`); a pooled-panel PyTorch LSTM
   with early stopping (`src/lstm_model.py`).
 - **Evaluation.** RMSE, MAE, directional accuracy, daily cross-sectional rank IC with t-statistics;
-  decile long-short with turnover and cost-adjusted Sharpe; regime split on a pre-registered
-  threshold.
+  decile long-short with turnover and cost-adjusted Sharpe; regime split on one fixed threshold.
 
 ## Reproducing
 
 ```
 pip install -r requirements.txt
-python run_all.py --source yfinance           # dev mirror; --quick for a smoke run
-python run_all.py --source bloomberg --skip-pull   # after dropping Bloomberg CSVs in data/raw/bloomberg/
+python run_all.py --source yfinance --quick    # public-data mirror
+python run_all.py --source bloomberg --quick   # after dropping Bloomberg CSVs in data/raw/bloomberg/
 python run_xs_regime.py                        # headline cross-sectional regime test
 python run_xs_weekly.py                        # weekly-rebalance decay test
 python run_regime.py                           # level-IC by regime
 ```
+
+`--quick` selects the compact LSTM that the canonical results use; every other model still runs in
+full. Without it `run_all.py` trains the 2×64 LSTM and overwrites `results/horse_race_results.csv`.
+`--skip-pull` skips the download and, for Bloomberg, the CSV parsing, so use it only once
+`panel_ohlcv.parquet` exists.
 
 Runner scripts `run_lstm_ckpt.py` and `run_zoo_ckpt.py` are the resume-safe checkpointed variants;
 their metrics land in `results/ckpt/*.json` and, for the zoo, in
@@ -159,10 +179,12 @@ two-point spread plot) were removed rather than published.
 
 ## Limitations
 
-Current-member universe, so survivorship bias is present and documented; level targets in a
-regime where nothing beats zero; costs modelled as a flat 10 bp per side; a single LSTM
-architecture with four ablations rather than an architecture search. Research and educational use
-only.
+Current-member universe, so survivorship bias is present and documented, and 17 of the 518 tickers
+are ETFs. The calendar is weekdays with holidays carried forward: 14 of the 915 test dates have
+all-zero targets, and Sharpe ratios are annualised with 252 days. Level targets in a regime where
+nothing beats zero; costs modelled as a flat 10 bp per side; t-statistics are plain, with no
+Newey-West correction; a single compact LSTM, not an architecture search. Research and
+educational use only.
 
 ## Correction note (2026-08-23)
 
