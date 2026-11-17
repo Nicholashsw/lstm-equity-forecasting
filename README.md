@@ -125,14 +125,6 @@ regime-by-model cells, tested with plain t-statistics and no adjustment for mult
   constant volume series in that extract, which drops its 615 test rows. The tables here are from
   the saved July run.
 
-## What I learned
-
-<!-- TODO Nick: three bullets in your own words. -->
-
-- 
-- 
-- 
-
 ## How to run
 
 ```
