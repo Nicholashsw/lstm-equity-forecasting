@@ -26,14 +26,12 @@ Singapore \\
 \begin{abstract}
 We evaluate whether Long Short-Term Memory (LSTM) networks outperform classical
 machine learning for forecasting daily United States equity returns, using a
-panel of 518 S\&P 500 constituents spanning March 2005 to July 2026 sourced from
-Bloomberg. Under a strictly chronological protocol with an explicit shuffled-target
+panel of 518 tickers (501 S\&P 500 constituents and 17 country and index ETFs) spanning March 2005 to July 2026 sourced from Bloomberg. Under a strictly chronological protocol with an explicit shuffled-target
 leakage control, we find that no model, LSTM included, predicts next-day return
 \emph{levels} with an accuracy exceeding a naive zero-return baseline. Reframing
 the task cross-sectionally, that is, predicting which stocks will out- or
 under-perform the daily universe mean, reveals statistically significant
-predictability that is concentrated in high-volatility regimes: a gradient-boosted
-tree attains a mean daily rank information coefficient (IC) of 0.044 ($t=3.2$) on
+predictability that is concentrated in high-volatility regimes: LightGBM attains a mean daily rank information coefficient (IC) of 0.044 ($t=3.2$) on
 high-volatility days versus 0.005 ($t=0.9$) on calm days, and the nonlinear model
 overtakes linear models specifically under stress. However, this predictability
 is a one-day phenomenon. A decile long-short portfolio earns a gross annualized
@@ -66,8 +64,7 @@ This paper asks a deliberately narrow question with a rigorous answer: on a broa
 recent panel of US large-capitalization equities, does an LSTM provide any edge
 over classical machine learning for daily return prediction, and if any signal
 exists, is it economically meaningful? Our contribution is threefold. First, we
-establish that daily return-\emph{level} prediction is a null result across eleven
-model families including an LSTM, validated by a shuffled-target control that
+establish that daily return-\emph{level} prediction is a null result across twelve model families including an LSTM, validated by a shuffled-target control that
 confirms the absence of leakage. Second, we show that a cross-sectional
 reformulation uncovers genuine, statistically significant predictability that is
 concentrated in high-volatility regimes and is stronger for nonlinear models.
@@ -91,9 +88,7 @@ validation and explicit leakage tests, follows de Prado \cite{depradombook}.
 
 \section{Data}
 The dataset comprises daily open, high, low, close and volume observations for the
-S\&P 500 membership, exported from a Bloomberg Terminal via a custom staged
-export pipeline. After cleaning, the panel contains 2{,}448{,}678 stock-day
-observations across 518 tickers from March 2005 to July 2026. Prices are
+501 S\&P 500 stocks and 17 country and index ETFs, exported from a Bloomberg Terminal via a custom staged export pipeline, from March 2005 to July 2026. The workbook holds 520 tickers; FDXF and HONA have 29 and 16 days of history, too few for the 50-day features, so 518 tickers are used. Prices are
 unadjusted terminal fields; corporate-action treatment is discussed in Section
 \ref{sec:limitations}. A parallel context dataset of twelve macro-financial series
 (equity indices, the VIX and MOVE volatility indices, the dollar index, the 2-,
@@ -126,15 +121,14 @@ which isolates relative performance and is dollar-neutral by construction.
 
 \subsection{Splits and Leakage Protocol}
 Data are partitioned strictly chronologically: training through 2021, validation
-in 2022, and testing from 2023 onward (466{,}426 test observations). Feature
-scalers and all hyperparameters are fit on training and validation data only. As a
+in 2022, and testing from 2023 onward (466{,}426 test observations). Feature scalers are fit on the training years only, and early stopping uses the validation year. As a
 falsification test we retrain a representative model on \emph{shuffled} training
 targets; a non-trivial out-of-sample IC in that setting would indicate leakage. The
 control returns IC $=0.004$ ($t=0.67$), statistically indistinguishable from zero,
 supporting the integrity of the pipeline.
 
 \subsection{Models}
-We compare eleven families: a zero-return and a momentum naive baseline; ordinary,
+We compare twelve families: a zero-return and a momentum naive baseline; ordinary,
 ridge and elastic-net linear regression; a decision tree, random forest, XGBoost
 and LightGBM; a linear support-vector regressor; a degree-two polynomial ridge; and
 an LSTM. The reported LSTM is a compact single-layer network (hidden size 32,
@@ -165,8 +159,7 @@ model materially beats the naive zero baseline on RMSE, and directional accuracy
 sits near 50\% throughout. The strongest information coefficients belong to the
 linear and support-vector models (IC $\approx 0.011$--$0.014$, $t\approx1.9$--$2.4$),
 which are marginal, while the LSTM attains IC $=0.004$ ($t=0.76$), statistically
-identical to the shuffled-target control. Gradient boosting and the decision tree
-have negative point-estimate ICs. The headline conclusion is unambiguous: for
+identical to the shuffled-target control. LightGBM and the decision tree have negative point-estimate ICs. The XGBoost and LightGBM rows are not comparable with the others: both models stop after a few boosting rounds and give almost every stock the same prediction, and the IC is defined only on days when predictions differ across stocks, which is 7 of the 915 test days for LightGBM and at most 168 for XGBoost. The headline conclusion is unambiguous: for
 next-day return levels, an LSTM offers no advantage, and the task is effectively
 unforecastable with these features.
 
@@ -193,16 +186,14 @@ Decision tree         & 0.497 & $-0.0838$ & $-1.60$ \\
 
 \subsection{Cross-Sectional Predictability Concentrates in High-Volatility Regimes}
 We define a high-volatility regime as any day on which the 63-day $z$-score of the
-VIX exceeds one; this labels 18.7\% of days and uses only information through day
-$t$. Table \ref{tab:xsregime} reports the cross-sectional results by regime. Two
+VIX exceeds one; this labels 183 of the 915 test days (20.0\%) and uses only information through day $t$. The threshold was not pre-registered. Table \ref{tab:xsregime} reports the cross-sectional results by regime. Two
 findings stand out. First, predictability is strongly regime-dependent: LightGBM
 achieves IC $=0.044$ ($t=3.2$) on high-volatility days against $0.005$ ($t=0.9$) on
 normal days, and the pooled significance masks this concentration. Second, the
 nonlinear model overtakes the linear model \emph{only} under stress, indicating
 nonlinear cross-sectional structure that pays off when volatility is high. An
 auxiliary experiment shows that the macro-context features contribute little beyond
-the regime split itself: ridge attains a comparable high-volatility IC with and
-without context, so it is the conditioning on regime, not the macro features, that
+the regime split itself: ridge attains a comparable high-volatility IC with (0.0515) and without (0.0450) context, so it is the conditioning on regime, not the macro features, that
 matters.
 
 \begin{table}[t]
@@ -226,7 +217,7 @@ LightGBM & all      & 0.0127 & 2.44 & 0.44 & $-3.55$ \\
 
 \subsection{The Signal is Short-Horizon and Not Cost-Survivable}
 The gross portfolio results are economically striking: the LightGBM high-volatility
-sleeve earns a gross annualized Sharpe of 2.09 with a shallow drawdown, and Fig.
+sleeve earns a gross annualized Sharpe of 2.09, and Fig.
 \ref{fig:daily} shows its cumulative long-short return accruing almost entirely
 within high-volatility windows. The effect nonetheless fails two independent tests
 of economic reality. First, transaction costs eliminate it: average one-way daily
@@ -234,9 +225,7 @@ turnover is roughly 2.6, implying about 26 basis points of daily cost, which
 exceeds the edge and drives every net Sharpe below zero (Table \ref{tab:xsregime}).
 Second, the signal does not persist. Retargeting to a five-day forward return and
 rebalancing weekly with non-overlapping observations collapses the high-volatility
-IC to $-0.007$ (Table \ref{tab:weekly}); the gradient-boosted model degenerates to
-near-constant predictions (best iteration 1, prediction standard deviation
-$1.4\times10^{-4}$), finding no exploitable structure at that horizon. Slower
+IC to $-0.007$ (Table \ref{tab:weekly}); the weekly LightGBM run produced no usable predictions. Slower
 rebalancing therefore removes the cost burden and the signal simultaneously.
 
 \begin{table}[t]
@@ -251,7 +240,7 @@ Model & Regime & IC & IC $t$ & Sharpe$_{\text{net}}$ \\
 Ridge    & high-vol & $-0.0071$ & $-0.19$ & $-0.27$ \\
 Ridge    & normal   & 0.0027    & 0.20    & $-0.74$ \\
 Ridge    & all      & 0.0007    & 0.05    & $-0.64$ \\
-LightGBM & all      & \multicolumn{3}{c}{degenerate (no splits)} \\
+LightGBM & all      & \multicolumn{3}{c}{no usable predictions} \\
 \bottomrule
 \end{tabular}
 \end{table}
