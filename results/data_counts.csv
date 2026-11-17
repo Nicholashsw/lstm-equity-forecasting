@@ -1,0 +1,14 @@
+key,value
+workbook_tickers,520
+etf_tickers,17
+used_tickers,518
+stock_tickers,501
+days_FDXF,29
+days_HONA,16
+test_dates,915
+zero_target_test_dates,14
+lstm_test_rows,465904
+prediction_files_MB,66
+lstm_test_rows_FISV,915
+rebuild_test_rows,465811
+rebuild_test_rows_FISV,300

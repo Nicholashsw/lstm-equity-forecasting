@@ -142,7 +142,10 @@ runs in full. Without it `run_all.py` trains the 2×64 LSTM and overwrites
 parsing, so use it only once `panel_ohlcv.parquet` exists. `run_lstm_ckpt.py` and
 `run_zoo_ckpt.py` are resumable versions whose metrics go to `results/ckpt/*.json` and
 `results/horse_race_results_ckpt.csv`, not to the canonical file. `run_lstm_full.py` trains the
-2×64 LSTM and writes only its loss curve. `docs/data_spec.md` describes the data files.
+2×64 LSTM and writes only its loss curve.
+`pytest tests/test_claims.py` checks every number in this README and the paper against the committed
+results files. `compute_data_counts.py` writes `results/data_counts.csv` (ticker and day counts only)
+from the Bloomberg sheets and the saved predictions, which are not in the repository. `docs/data_spec.md` describes the data files.
 
 ### Building the paper
 
@@ -173,10 +176,12 @@ Because the source arrives on stdin, the result is written as `build/texput.pdf`
 ├── run_xs_weekly.py          # 5-day-horizon weekly-rebalance decay test
 ├── run_regime.py             # level-IC by regime, context vs no-context
 ├── compute_ls_series.py      # daily ridge long-short series -> ridge_ls_daily.csv
+├── compute_data_counts.py    # ticker and day counts -> data_counts.csv
 ├── extract_xlsm.py           # one-off: Bloomberg workbook -> per-sheet CSVs
 ├── results/                  # committed metric CSVs, ckpt/*.json, figures/
 ├── paper/                    # IEEE manuscript (main.tex, PDF, class file, figure)
 ├── notebooks/                # executed notebook
+├── tests/                    # test_claims.py: README and paper numbers vs results
 ├── docs/                     # data spec
 ├── requirements.txt
 ├── LICENSE
