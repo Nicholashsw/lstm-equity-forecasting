@@ -22,7 +22,9 @@ Nicholas Hong · NTU Undergraduate Research Opportunities Programme (UROP)
 ## Data
 
 518 tickers: 501 S&P 500 stocks and 17 country and index ETFs, March 2005 to July 2026, exported
-from a Bloomberg Terminal with `mod_BBG_UROP_Export.bas` (not in this repo). A yfinance mirror
+from a Bloomberg Terminal with `mod_BBG_UROP_Export.bas` (not in this repo). The workbook holds 520;
+FDXF and HONA have 29 and 16 days of history, too few for the 50-day features, and drop out of the
+panel. A yfinance mirror
 (`src/pull_yfinance.py`) produces the same columns for development and matches the Bloomberg
 closes (`results/parity_report.csv`, median absolute difference ≈ 0). Context series: VIX, MOVE,
 DXY, the US Treasury curve and commodities. The Bloomberg panel is licensed and is not in this
@@ -194,7 +196,7 @@ two-point spread plot) were removed rather than published.
 Current-member universe, so survivorship bias is present and documented, and 17 of the 518 tickers
 are ETFs. The calendar is weekdays with holidays carried forward: 14 of the 915 test dates have
 all-zero targets, and Sharpe ratios are annualised with 252 days. Level targets in a regime where
-nothing beats zero; costs modelled as a flat 10 bp per side; t-statistics are plain, with no
+nothing beats zero; costs modelled as a flat 10 bp per side; IC t-statistics are plain, with no
 Newey-West correction; a single compact LSTM, not an architecture search. The VIX threshold was
 not pre-registered. Research and educational use only.
 

@@ -39,11 +39,11 @@ Input: CSVs exported by `mod_BBG_UROP_Export.bas` from sheets `BBG_V1A_001...` e
 | RTY Index | ^RUT | |
 | INDU Index | ^DJI | |
 | VIX Index | ^VIX | |
-| MOVE Index | ^MOVE | Yahoo has it from ~2002 |
+| MOVE Index | none | Not in the mirror; the MOVE feature is skipped |
 | DXY Curncy | DX-Y.NYB | ICE dollar index |
-| USGG2YR Index | (proxy) ^IRX | Yahoo lacks 2Y; 13-week bill yield used as short-rate proxy. Flagged; Bloomberg is authoritative |
-| USGG10YR Index | ^TNX | CBOE 10Y yield index |
-| USGG30YR Index | ^TYX | |
+| USGG2YR Index | FRED `DGS2` | Yahoo no longer serves yield history, so the mirror takes yields from FRED |
+| USGG10YR Index | FRED `DGS10` | |
+| USGG30YR Index | FRED `DGS30` | |
 | CL1 Comdty | CL=F | front WTI |
 | GC1 Comdty | GC=F | front gold |
 | HG1 Comdty | HG=F | front copper |
